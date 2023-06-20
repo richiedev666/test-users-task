@@ -1,57 +1,35 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import { useModal } from "vue-final-modal";
+import { useModal, useModalSlot } from "vue-final-modal";
+import draggable from "vuedraggable";
 
-import AddPost from "@/components/AddPost.vue";
+import Add from "@/components/User/Post/Add.vue";
 
-const { open, close, destroy, options, patchOptions } = useModal({
-  // Open the modal or not when the modal was created, the default value is `false`.
+import { Post, User } from "@/types";
+
+import UserPost from "@/components/User/Post/index.vue";
+
+const AddPostModal = useModal({
   defaultModelValue: false,
-  /**
-   * If set `keepAlive` to `true`:
-   * 1. The `displayDirective` will be set to `show` by default.
-   * 2. The modal component will not be removed after the modal closed until you manually execute `destroy()`.
-   */
-  keepAlive: false,
-  // `component` is optional and the default value is `<VueFinalModal>`.
   attrs: {
-    // Bind props to the modal component (VueFinalModal in this case).
     clickToClose: true,
     escToClose: true,
-    // Bind events to the modal component (VueFinalModal in this case).
-    onBeforeOpen() {
-      /* on before open */
-    },
-    onOpened() {
-      /* on opened */
-    },
-    onBeforeClose() {
-      /* on before close */
-    },
-    onClosed() {
-      /* on closed */
-    },
   },
   slots: {
-    default: AddPost,
+    default: useModalSlot({
+      component: Add,
+      attrs: {
+        title: `Добавить пост`,
+        onClose() {
+          AddPostModal.close();
+        },
+      },
+    }),
   },
 });
 
 const route = useRoute();
-
-interface Post {
-  id: number;
-  title: string;
-  body: string;
-}
-
-interface User {
-  id: number;
-  loading: boolean;
-  username: string;
-  posts: Post[];
-}
 
 const users = ref<User[]>([] as User[]);
 
@@ -63,33 +41,64 @@ const fetchUserPosts = async (id: number): Promise<Post[]> => {
   return await response.json();
 };
 
-const fetchUsers = async (): Promise<User[]> => {
+const fetchUsers = async (): Promise<void> => {
   const response = await fetch(`${process.env.VUE_APP_API_HOST}/users`);
   const data = await response.json();
 
   for (let i = 0; i < data.length; i++) {
     const user: User = data[i];
 
+    users.value.push(user);
+
     user.loading = true;
     user.posts = await fetchUserPosts(user.id);
+    user.posts.map((e) => (e.user = user));
     user.loading = false;
   }
-
-  return data;
 };
 
 watch(
   route,
   async () => {
-    users.value = await fetchUsers();
+    await fetchUsers();
   },
   {
     immediate: true,
   }
 );
 
-const openAddPostModal = (): void => {
-  open();
+const openAddPostModal = (user: User): void => {
+  AddPostModal.patchOptions({
+    slots: {
+      default: useModalSlot({
+        component: Add,
+        attrs: {
+          title: `Добавить пост ${user.username}`,
+          user,
+          onAdd: (post: Post) => {
+            user.posts.push(post);
+            AddPostModal.close();
+          },
+        },
+      }),
+    },
+  });
+
+  AddPostModal.open();
+};
+
+const editPost = (post: Post, newValue: Post): void => {
+  post.title = newValue.title;
+  post.body = newValue.body;
+};
+
+const handlePostGroupChange = (
+  status: { added: { element: Post } },
+  user: User
+): void => {
+  if (status.added) {
+    status.added.element.userId = user.id;
+  }
 };
 </script>
 
@@ -103,32 +112,37 @@ const openAddPostModal = (): void => {
         :key="`user-${user.id}`"
         class="users__column__wrapper"
       >
-        <p v-if="user.loading">Загрузка...</p>
-
         <div class="users__column">
           <div class="users__column__header">
             <h4>{{ user.username }}</h4>
 
-            <p>{{ user.posts?.length }}</p>
+            <p>{{ user.posts?.length }} постов</p>
           </div>
         </div>
 
-        <div v-if="user.posts?.length" class="users__column__posts">
-          <div
-            v-for="post in user.posts"
-            :key="`user-${user.id}-${post.id}`"
-            class="users__column__posts__item"
-          >
-            <h5>{{ post.title }}</h5>
-
-            <p class="users__column__posts__item__body">{{ post.body }}</p>
-          </div>
+        <div v-if="user.loading" class="users__column__posts">
+          <div class="users__column__posts__item">Загрузка...</div>
         </div>
 
-        <button
-          class="users__column__button"
-          @click="openAddPostModal(user.id)"
+        <draggable
+          v-if="user.posts?.length"
+          class="users__column__posts"
+          :item-key="`user-${user.id}-posts`"
+          group="posts"
+          :list="user.posts"
+          @change="(status) => handlePostGroupChange(status, user)"
         >
+          <template #item="{ element, index }">
+            <UserPost
+              :key="`user-${user.id}-${element.id}`"
+              :post="element"
+              @edit="(newValue) => editPost(element, newValue)"
+              @delete="() => user.posts.splice(index, 1)"
+            />
+          </template>
+        </draggable>
+
+        <button class="users__column__button" @click="openAddPostModal(user)">
           Добавить пост
         </button>
       </div>
@@ -159,6 +173,7 @@ const openAddPostModal = (): void => {
 
     &__wrapper {
       min-width: 250px;
+      width: 250px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -186,21 +201,6 @@ const openAddPostModal = (): void => {
       gap: 10px;
       max-height: 70vh;
       overflow-y: auto;
-
-      &__item {
-        box-shadow: 0px 2px 8px 0px rgba(34, 60, 80, 0.2);
-        background-color: #fbfbfb;
-        padding: 10px;
-        border-radius: 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
-
-        &__body {
-          opacity: 0.7;
-          font-size: 14px;
-        }
-      }
     }
   }
 }

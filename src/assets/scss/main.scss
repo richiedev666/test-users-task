@@ -6,6 +6,16 @@
 
 body {
   font-family: "Roboto", sans-serif;
+
+  input,
+  textarea,
+  select {
+    font-family: "Roboto", sans-serif;
+
+    &::placeholder {
+      font-family: "Roboto", sans-serif;
+    }
+  }
 }
 
 html {
