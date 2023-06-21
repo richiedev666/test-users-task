@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useModal, useModalSlot } from "vue-final-modal";
 import draggable from "vuedraggable";
@@ -61,6 +61,13 @@ watch(
   route,
   async () => {
     await fetchUsers();
+
+    const row = document.querySelector(".users__row");
+    const gradient = document.querySelector(".users__row__gradient");
+
+    console.log(row.scrollWidth);
+
+    gradient.style.width = `${row.scrollWidth}px`;
   },
   {
     immediate: true,
@@ -107,6 +114,8 @@ const handlePostGroupChange = (
     <h1>Users</h1>
 
     <div class="users__row">
+      <div class="users__row__gradient"></div>
+
       <div
         v-for="user in users"
         :key="`user-${user.id}`"
@@ -159,17 +168,37 @@ const handlePostGroupChange = (
   }
 
   &__row {
-    overflow: auto;
+    overflow-x: auto;
     display: flex;
-    gap: 20px;
-    padding: 20px;
+    position: relative;
+    background-color: #eee;
+    padding-bottom: 10px;
+
+    &__gradient {
+      position: absolute;
+      left: 0;
+      top: 0;
+      background: rgb(124, 239, 156);
+      background: linear-gradient(
+        90deg,
+        rgba(124, 239, 156, 1) 0%,
+        rgba(16, 105, 168, 1) 100%
+      );
+      height: 50px;
+      width: 100%;
+      z-index: 1;
+    }
   }
 
   &__column {
-    padding: 14px;
+    padding: 0 14px;
     box-shadow: 0px 2px 8px 0px rgba(34, 60, 80, 0.2);
     border-radius: 10px;
-    background-color: white;
+    z-index: 10;
+    position: relative;
+    background: transparent;
+    color: white;
+    overflow: hidden;
 
     &__wrapper {
       min-width: 250px;
@@ -177,12 +206,15 @@ const handlePostGroupChange = (
       display: flex;
       flex-direction: column;
       gap: 10px;
+      border-right: 20px #eee solid;
+      z-index: 1;
     }
 
     &__header {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      height: 50px;
     }
 
     &__button {

@@ -45,8 +45,6 @@ const deletePost = (): void => {
 
     <p class="post__body">{{ post.body }}</p>
 
-    <p>{{ post.userId }}</p>
-
     <div class="post__panel">
       <button @click="editPost">Изменить</button>
 
